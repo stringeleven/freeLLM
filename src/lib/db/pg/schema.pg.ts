@@ -371,6 +371,65 @@ export const ChatExportCommentTable = pgTable("chat_export_comment", {
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const ProjectTable = pgTable(
+  "project",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => UserTable.id, { onDelete: "cascade" }),
+    externalProjectId: varchar("external_project_id", {
+      length: 128,
+    }).notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    status: varchar("status", { length: 32 }).default("draft"),
+    templateUsed: varchar("template_used", { length: 64 }),
+    vercelPreviewUrl: text("vercel_preview_url"),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    lastActivityAt: timestamp("last_activity_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    unique().on(table.userId, table.externalProjectId),
+    unique().on(table.userId, table.name),
+    index("idx_project_user_id").on(table.userId),
+    index("idx_project_last_activity_at").on(table.lastActivityAt),
+  ],
+);
+
+export const ProjectFileTable = pgTable(
+  "project_file",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+    versionId: uuid("version_id"), // nullable, NULL = working copy
+    path: text("path").notNull(),
+    mimeType: varchar("mime_type", { length: 128 }).default("text/plain"),
+    sizeBytes: varchar("size_bytes", { length: 32 }),
+    contentHash: varchar("content_hash", { length: 64 }),
+    blobPath: text("blob_path").notNull(),
+    lastModifiedAt:
+      timestamp("last_modified_at").default(sql`CURRENT_TIMESTAMP`),
+    isBinary: boolean("is_binary").default(false),
+  },
+  (table) => [
+    index("idx_project_file_project_id").on(table.projectId),
+    index("idx_project_file_project_path").on(table.projectId, table.path),
+  ],
+);
+
+export type ProjectEntity = typeof ProjectTable.$inferSelect;
+export type ProjectFileEntity = typeof ProjectFileTable.$inferSelect;
+
 export type ArchiveEntity = typeof ArchiveTable.$inferSelect;
 export type ArchiveItemEntity = typeof ArchiveItemTable.$inferSelect;
 export type BookmarkEntity = typeof BookmarkTable.$inferSelect;

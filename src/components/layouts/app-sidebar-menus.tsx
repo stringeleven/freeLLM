@@ -101,6 +101,18 @@ export function AppSidebarMenus({ user }: { user?: BasicUser }) {
             </SidebarMenuItem>
           </Tooltip>
         </SidebarMenu>
+        <SidebarMenu>
+          <Tooltip>
+            <SidebarMenuItem>
+              <Link href="/projects">
+                <SidebarMenuButton className="font-semibold">
+                  <FolderOpenIcon className="size-4" />
+                  Projects
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+          </Tooltip>
+        </SidebarMenu>
         {getIsUserAdmin(user) && <AppSidebarAdmin />}
         <SidebarMenu className="group/archive">
           <Tooltip>
