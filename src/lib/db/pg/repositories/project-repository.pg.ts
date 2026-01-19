@@ -4,7 +4,7 @@ import type {
   UpdateProjectInput,
 } from "app-types/project";
 import { pgDb as db } from "../db.pg";
-import { ProjectTable, UserTable } from "../schema.pg";
+import { ProjectTable } from "../schema.pg";
 import { and, desc, eq } from "drizzle-orm";
 import logger from "logger";
 

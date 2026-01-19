@@ -3,6 +3,9 @@ import { getAuthConfig } from "auth/config";
 import { getIsFirstUser } from "lib/auth/server";
 import { redirect } from "next/navigation";
 
+// Force dynamic rendering to avoid database queries during static generation
+export const dynamic = "force-dynamic";
+
 export default async function SignUp() {
   const isFirstUser = await getIsFirstUser();
   const {

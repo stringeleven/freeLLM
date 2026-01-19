@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "auth/server";
-import { projectFileRepository } from "@/lib/db/repository";
+import {
+  projectRepository,
+  projectVersionRepository,
+} from "@/lib/db/repository";
 import logger from "logger";
 
 export async function GET(
@@ -19,7 +22,7 @@ export async function GET(
     const { projectId } = await params;
 
     // Check ownership
-    const hasAccess = await projectFileRepository.checkAccess(
+    const hasAccess = await projectRepository.checkAccess(
       projectId,
       session.user.id,
     );
@@ -27,17 +30,17 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const files = await projectFileRepository.listFiles(projectId);
+    const versions = await projectVersionRepository.findByProjectId(projectId);
 
-    return NextResponse.json(files);
+    return NextResponse.json(versions);
   } catch (error) {
     const { projectId } = await params;
-    logger.error("Failed to list project files", {
+    logger.error("Failed to list project versions", {
       error,
       projectId,
     });
     return NextResponse.json(
-      { error: "Failed to list files" },
+      { error: "Failed to list versions" },
       { status: 500 },
     );
   }

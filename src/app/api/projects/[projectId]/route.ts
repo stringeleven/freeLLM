@@ -6,7 +6,7 @@ import logger from "logger";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } },
+  { params }: { params: Promise<{ projectId: string }> },
 ) {
   try {
     const session = await auth.api.getSession({
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const projectId = params.projectId;
+    const { projectId } = await params;
 
     // Check ownership
     const hasAccess = await projectRepository.checkAccess(
@@ -36,9 +36,10 @@ export async function GET(
 
     return NextResponse.json(project);
   } catch (error) {
+    const { projectId } = await params;
     logger.error("Failed to get project", {
       error,
-      projectId: params.projectId,
+      projectId,
     });
     return NextResponse.json(
       { error: "Failed to get project" },
@@ -49,7 +50,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { projectId: string } },
+  { params }: { params: Promise<{ projectId: string }> },
 ) {
   try {
     const session = await auth.api.getSession({
@@ -60,7 +61,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const projectId = params.projectId;
+    const { projectId } = await params;
 
     // Check ownership
     const hasAccess = await projectRepository.checkAccess(
@@ -76,7 +77,7 @@ export async function PATCH(
 
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Invalid input", details: validationResult.error.errors },
+        { error: "Invalid input", details: validationResult.error.issues },
         { status: 400 },
       );
     }
@@ -93,9 +94,10 @@ export async function PATCH(
 
     return NextResponse.json(project);
   } catch (error) {
+    const { projectId } = await params;
     logger.error("Failed to update project", {
       error,
-      projectId: params.projectId,
+      projectId,
     });
     return NextResponse.json(
       { error: "Failed to update project" },
@@ -106,7 +108,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { projectId: string } },
+  { params }: { params: Promise<{ projectId: string }> },
 ) {
   try {
     const session = await auth.api.getSession({
@@ -117,7 +119,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const projectId = params.projectId;
+    const { projectId } = await params;
 
     // Check ownership
     const hasAccess = await projectRepository.checkAccess(
@@ -137,9 +139,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const { projectId } = await params;
     logger.error("Failed to delete project", {
       error,
-      projectId: params.projectId,
+      projectId,
     });
     return NextResponse.json(
       { error: "Failed to delete project" },

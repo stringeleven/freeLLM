@@ -8,7 +8,7 @@ import crypto from "crypto";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } },
+  { params }: { params: Promise<{ projectId: string }> },
 ) {
   try {
     const session = await auth.api.getSession({
@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const projectId = params.projectId;
+    const { projectId } = await params;
     const { searchParams } = new URL(request.url);
     const path = searchParams.get("path");
 
@@ -56,9 +56,10 @@ export async function GET(
       isBinary: file.isBinary,
     });
   } catch (error) {
+    const { projectId } = await params;
     logger.error("Failed to read project file", {
       error,
-      projectId: params.projectId,
+      projectId,
     });
     return NextResponse.json({ error: "Failed to read file" }, { status: 500 });
   }
@@ -66,7 +67,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { projectId: string } },
+  { params }: { params: Promise<{ projectId: string }> },
 ) {
   try {
     const session = await auth.api.getSession({
@@ -77,7 +78,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const projectId = params.projectId;
+    const { projectId } = await params;
 
     // Check ownership
     const hasAccess = await projectFileRepository.checkAccess(
@@ -93,7 +94,7 @@ export async function PUT(
 
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Invalid input", details: validationResult.error.errors },
+        { error: "Invalid input", details: validationResult.error.issues },
         { status: 400 },
       );
     }
@@ -143,9 +144,10 @@ export async function PUT(
       },
     });
   } catch (error) {
+    const { projectId } = await params;
     logger.error("Failed to save project file", {
       error,
-      projectId: params.projectId,
+      projectId,
     });
     return NextResponse.json({ error: "Failed to save file" }, { status: 500 });
   }

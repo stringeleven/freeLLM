@@ -12,6 +12,7 @@ import {
   unique,
   varchar,
   index,
+  integer,
 } from "drizzle-orm/pg-core";
 import { isNotNull } from "drizzle-orm";
 import { DBWorkflow, DBEdge, DBNode } from "app-types/workflow";
@@ -386,6 +387,9 @@ export const ProjectTable = pgTable(
     status: varchar("status", { length: 32 }).default("draft"),
     templateUsed: varchar("template_used", { length: 64 }),
     vercelPreviewUrl: text("vercel_preview_url"),
+    versionCount: integer("version_count").default(0),
+    currentVersionNumber: integer("current_version_number"),
+    currentVersionId: uuid("current_version_id"),
     createdAt: timestamp("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -427,8 +431,56 @@ export const ProjectFileTable = pgTable(
   ],
 );
 
+export const ProjectVersionTable = pgTable(
+  "project_version",
+  {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+    versionNumber: integer("version_number").notNull(),
+    createdAt: timestamp("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    createdBy: uuid("created_by").references(() => UserTable.id, {
+      onDelete: "set null",
+    }),
+    changeSummary: text("change_summary"),
+    commitSha: varchar("commit_sha", { length: 40 }),
+    vercelDeploymentId: varchar("vercel_deployment_id", { length: 128 }),
+    vercelDeploymentUrl: text("vercel_deployment_url"),
+    metadata: json("metadata").default({}),
+    filesManifest: json("files_manifest").default({}),
+  },
+  (table) => [
+    unique().on(table.projectId, table.versionNumber),
+    index("idx_project_version_project_id").on(table.projectId),
+    index("idx_project_version_created_at").on(table.createdAt),
+  ],
+);
+
+export const ProjectChatOriginTable = pgTable(
+  "project_chat_origin",
+  {
+    projectId: uuid("project_id")
+      .primaryKey()
+      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+    chatThreadId: uuid("chat_thread_id")
+      .notNull()
+      .references(() => ChatThreadTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+    generationPrompt: text("generation_prompt"),
+  },
+  (table) => [
+    index("idx_project_chat_origin_thread_id").on(table.chatThreadId),
+  ],
+);
+
 export type ProjectEntity = typeof ProjectTable.$inferSelect;
 export type ProjectFileEntity = typeof ProjectFileTable.$inferSelect;
+export type ProjectVersionEntity = typeof ProjectVersionTable.$inferSelect;
+export type ProjectChatOriginEntity =
+  typeof ProjectChatOriginTable.$inferSelect;
 
 export type ArchiveEntity = typeof ArchiveTable.$inferSelect;
 export type ArchiveItemEntity = typeof ArchiveItemTable.$inferSelect;

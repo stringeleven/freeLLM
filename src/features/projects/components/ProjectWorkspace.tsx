@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "ui/button";
 import { ProjectEditor } from "../editor/ProjectEditor";
 import { PreviewPanel } from "../preview/PreviewPanel";
 import { ResizableLayout } from "../preview/ResizableLayout";
-import type { Project } from "app-types/project";
+import { VersionHistory } from "../versions/VersionHistory";
+import { DeployButton } from "../deploy/DeployButton";
+import type { Project, ProjectVersion } from "app-types/project";
 import logger from "logger";
 
 interface ProjectWorkspaceProps {
@@ -20,6 +23,8 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showVersions, setShowVersions] = useState(false);
+  const [versionRefreshKey, setVersionRefreshKey] = useState(0);
 
   const selectedFile = searchParams.get("file");
 
@@ -63,6 +68,18 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
     });
   };
 
+  const handleDeploySuccess = (version: ProjectVersion) => {
+    setVersionRefreshKey((prev) => prev + 1);
+    if (version.vercelDeploymentUrl) {
+      setRefreshKey((prev) => prev + 1);
+      loadProject();
+    }
+  };
+
+  const handleVersionRestored = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -88,28 +105,74 @@ export function ProjectWorkspace({ projectId }: ProjectWorkspaceProps) {
   }
 
   return (
-    <div className="h-screen">
-      <ResizableLayout
-        leftPanel={
-          <ProjectEditor
+    <div className="h-screen flex flex-col">
+      <div className="flex items-center justify-between border-b p-2 bg-background">
+        <div className="flex items-center gap-2">
+          <h2 className="font-semibold">{project?.name}</h2>
+          {project?.status && (
+            <span className="text-xs text-muted-foreground px-2 py-1 bg-accent rounded">
+              {project.status}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowVersions(!showVersions)}
+          >
+            {showVersions ? "Hide" : "Show"} Versions
+          </Button>
+          <DeployButton
             projectId={projectId}
-            initialFilePath={selectedFile}
-            onFilePathChange={handleFilePathChange}
+            onDeploySuccess={handleDeploySuccess}
           />
-        }
-        rightPanel={
-          <PreviewPanel
-            project={project}
-            isFullscreen={isFullscreen}
-            setIsFullscreen={setIsFullscreen}
-            refreshKey={refreshKey}
-            setRefreshKey={setRefreshKey}
-          />
-        }
-        defaultLeftWidth={50}
-        minLeftWidth={30}
-        maxLeftWidth={70}
-      />
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <ResizableLayout
+          leftPanel={
+            <ProjectEditor
+              projectId={projectId}
+              initialFilePath={selectedFile}
+              onFilePathChange={handleFilePathChange}
+            />
+          }
+          rightPanel={
+            showVersions ? (
+              <div className="flex h-full">
+                <div className="flex-1">
+                  <PreviewPanel
+                    project={project}
+                    isFullscreen={isFullscreen}
+                    setIsFullscreen={setIsFullscreen}
+                    refreshKey={refreshKey}
+                    setRefreshKey={setRefreshKey}
+                  />
+                </div>
+                <div className="w-80">
+                  <VersionHistory
+                    key={versionRefreshKey}
+                    projectId={projectId}
+                    onVersionRestored={handleVersionRestored}
+                  />
+                </div>
+              </div>
+            ) : (
+              <PreviewPanel
+                project={project}
+                isFullscreen={isFullscreen}
+                setIsFullscreen={setIsFullscreen}
+                refreshKey={refreshKey}
+                setRefreshKey={setRefreshKey}
+              />
+            )
+          }
+          defaultLeftWidth={50}
+          minLeftWidth={30}
+          maxLeftWidth={70}
+        />
+      </div>
     </div>
   );
 }

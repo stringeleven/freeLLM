@@ -11,6 +11,7 @@ import { pgBookmarkRepository } from "./pg/repositories/bookmark-repository.pg";
 import { pgChatExportRepository } from "./pg/repositories/chat-export-repository.pg";
 import { pgProjectRepository } from "./pg/repositories/project-repository.pg";
 import { pgProjectFileRepository } from "./pg/repositories/project-file-repository.pg";
+import { pgProjectVersionRepository } from "./pg/repositories/project-version-repository.pg";
 
 export const chatRepository = pgChatRepository;
 export const userRepository = pgUserRepository;
@@ -28,3 +29,4 @@ export const bookmarkRepository = pgBookmarkRepository;
 export const chatExportRepository = pgChatExportRepository;
 export const projectRepository = pgProjectRepository;
 export const projectFileRepository = pgProjectFileRepository;
+export const projectVersionRepository = pgProjectVersionRepository;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { SaveIcon } from "lucide-react";
 import { Button } from "ui/button";
 import { Textarea } from "ui/textarea";
@@ -8,6 +8,33 @@ import { cn } from "@/lib/utils";
 import type { FileContent } from "app-types/project";
 import { projectFilesAdapter } from "@/features/projects/editor/adapters/projectFilesAdapter";
 import logger from "logger";
+
+// Helper function to detect language from file path
+function detectLanguage(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase();
+  const languageMap: Record<string, string> = {
+    js: "javascript",
+    jsx: "javascript",
+    ts: "typescript",
+    tsx: "typescript",
+    json: "json",
+    html: "html",
+    css: "css",
+    scss: "scss",
+    md: "markdown",
+    py: "python",
+    rb: "ruby",
+    go: "go",
+    rs: "rust",
+    java: "java",
+    c: "c",
+    cpp: "cpp",
+    sh: "shell",
+    yml: "yaml",
+    yaml: "yaml",
+  };
+  return languageMap[ext || ""] || "text";
+}
 
 interface FileEditorProps {
   projectId: string;
@@ -23,10 +50,13 @@ export function FileEditor({
   const [content, setContent] = useState("");
   const [originalContent, setOriginalContent] = useState("");
   const [mimeType, setMimeType] = useState("text/plain");
+  const [language, setLanguage] = useState("text");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isAutosaving, setIsAutosaving] = useState(false);
 
   const isDirty = content !== originalContent;
 
@@ -51,6 +81,7 @@ export function FileEditor({
         setContent(fileContent.content);
         setOriginalContent(fileContent.content);
         setMimeType(fileContent.mimeType || "text/plain");
+        setLanguage(detectLanguage(filePath));
       } catch (err) {
         logger.error("Failed to load file", {
           error: err,
@@ -66,30 +97,75 @@ export function FileEditor({
     loadFile();
   }, [projectId, filePath]);
 
-  const handleSave = async () => {
-    if (!filePath) return;
+  const handleSave = useCallback(
+    async (isAuto = false) => {
+      if (!filePath) return;
 
-    setIsSaving(true);
-    setError(null);
-    setSaveSuccess(false);
-    try {
-      await projectFilesAdapter.saveFile(
-        projectId,
-        filePath,
-        content,
-        mimeType,
-      );
-      setOriginalContent(content);
-      setSaveSuccess(true);
-      onSaveSuccess?.();
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      logger.error("Failed to save file", { error: err, projectId, filePath });
-      setError("Failed to save file");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+      if (isAuto) {
+        setIsAutosaving(true);
+      } else {
+        setIsSaving(true);
+      }
+      setError(null);
+      setSaveSuccess(false);
+
+      try {
+        await projectFilesAdapter.saveFile(
+          projectId,
+          filePath,
+          content,
+          mimeType,
+        );
+        setOriginalContent(content);
+        setLastSaved(new Date());
+        if (!isAuto) {
+          setSaveSuccess(true);
+          setTimeout(() => setSaveSuccess(false), 3000);
+        }
+        onSaveSuccess?.();
+      } catch (err) {
+        logger.error("Failed to save file", {
+          error: err,
+          projectId,
+          filePath,
+        });
+        setError("Failed to save file");
+      } finally {
+        if (isAuto) {
+          setIsAutosaving(false);
+        } else {
+          setIsSaving(false);
+        }
+      }
+    },
+    [filePath, projectId, content, mimeType, onSaveSuccess],
+  );
+
+  // Autosave with debouncing (2 seconds)
+  useEffect(() => {
+    if (!isDirty || !filePath) return;
+
+    const timer = setTimeout(() => {
+      handleSave(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [content, isDirty, filePath, handleSave]);
+
+  // Keyboard shortcut for save (Cmd+S / Ctrl+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (isDirty && !isSaving) {
+          handleSave(false);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDirty, isSaving, handleSave]);
 
   if (!filePath) {
     return (
@@ -107,16 +183,28 @@ export function FileEditor({
           {isDirty && (
             <span className="text-xs text-muted-foreground">(modified)</span>
           )}
+          <span className="text-xs text-muted-foreground">{language}</span>
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={!isDirty || isSaving || isLoading}
-          size="sm"
-          className="gap-2"
-        >
-          <SaveIcon className="h-4 w-4" />
-          {isSaving ? "Saving..." : "Save"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {isAutosaving
+              ? "Autosaving..."
+              : isDirty
+                ? "Unsaved changes"
+                : lastSaved
+                  ? `Saved at ${lastSaved.toLocaleTimeString()}`
+                  : "Saved"}
+          </span>
+          <Button
+            onClick={() => handleSave(false)}
+            disabled={!isDirty || isSaving || isLoading}
+            size="sm"
+            className="gap-2"
+          >
+            <SaveIcon className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+        </div>
       </div>
       {error && (
         <div className="bg-destructive/10 text-destructive border-b p-2 text-sm">
@@ -139,9 +227,13 @@ export function FileEditor({
             onChange={(e) => setContent(e.target.value)}
             className={cn(
               "h-full resize-none border-0 font-mono text-sm focus-visible:ring-0",
-              "rounded-none",
+              "rounded-none leading-relaxed",
             )}
             placeholder="File content will appear here..."
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
           />
         )}
       </div>

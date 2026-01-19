@@ -12,6 +12,9 @@ export interface ProjectFileRepository {
   ): Promise<ProjectFile>;
   deleteFile(projectId: string, path: string): Promise<void>;
   checkAccess(projectId: string, userId: string): Promise<boolean>;
+  snapshotWorkingCopy(projectId: string, versionId: string): Promise<number>;
+  getVersionFiles(versionId: string): Promise<ProjectFile[]>;
+  restoreVersion(projectId: string, versionId: string): Promise<number>;
 }
 
 export const pgProjectFileRepository: ProjectFileRepository = {
@@ -165,6 +168,125 @@ export const pgProjectFileRepository: ProjectFileRepository = {
         error,
         projectId,
         userId,
+      });
+      throw error;
+    }
+  },
+
+  snapshotWorkingCopy: async (
+    projectId: string,
+    versionId: string,
+  ): Promise<number> => {
+    try {
+      // Get all working copy files
+      const workingFiles = await db
+        .select()
+        .from(ProjectFileTable)
+        .where(
+          and(
+            eq(ProjectFileTable.projectId, projectId),
+            isNull(ProjectFileTable.versionId),
+          ),
+        );
+
+      if (workingFiles.length === 0) {
+        logger.warn("No files to snapshot", { projectId, versionId });
+        return 0;
+      }
+
+      // Create snapshot copies with versionId
+      const snapshotFiles = workingFiles.map((file) => ({
+        projectId: file.projectId,
+        versionId,
+        path: file.path,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+        contentHash: file.contentHash,
+        blobPath: file.blobPath,
+        isBinary: file.isBinary,
+      }));
+
+      await db.insert(ProjectFileTable).values(snapshotFiles);
+
+      logger.info("Working copy snapshotted", {
+        projectId,
+        versionId,
+        fileCount: snapshotFiles.length,
+      });
+      return snapshotFiles.length;
+    } catch (error) {
+      logger.error("Failed to snapshot working copy", {
+        error,
+        projectId,
+        versionId,
+      });
+      throw error;
+    }
+  },
+
+  getVersionFiles: async (versionId: string): Promise<ProjectFile[]> => {
+    try {
+      const results = await db
+        .select()
+        .from(ProjectFileTable)
+        .where(eq(ProjectFileTable.versionId, versionId));
+
+      return results;
+    } catch (error) {
+      logger.error("Failed to get version files", { error, versionId });
+      throw error;
+    }
+  },
+
+  restoreVersion: async (
+    projectId: string,
+    versionId: string,
+  ): Promise<number> => {
+    try {
+      // Get version files
+      const versionFiles =
+        await pgProjectFileRepository.getVersionFiles(versionId);
+
+      if (versionFiles.length === 0) {
+        logger.warn("No files to restore", { projectId, versionId });
+        return 0;
+      }
+
+      // Delete current working copy
+      await db
+        .delete(ProjectFileTable)
+        .where(
+          and(
+            eq(ProjectFileTable.projectId, projectId),
+            isNull(ProjectFileTable.versionId),
+          ),
+        );
+
+      // Create new working copy from version
+      const workingFiles = versionFiles.map((file) => ({
+        projectId: file.projectId,
+        versionId: null,
+        path: file.path,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+        contentHash: file.contentHash,
+        blobPath: file.blobPath,
+        isBinary: file.isBinary,
+      }));
+
+      await db.insert(ProjectFileTable).values(workingFiles);
+
+      logger.info("Version restored to working copy", {
+        projectId,
+        versionId,
+        fileCount: workingFiles.length,
+      });
+      return workingFiles.length;
+    } catch (error) {
+      logger.error("Failed to restore version", {
+        error,
+        projectId,
+        versionId,
       });
       throw error;
     }
